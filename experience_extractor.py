@@ -254,7 +254,6 @@ if uploaded:
                 <div class="file-row"><div class="file-name">{fname}</div></div>
                 <div style="display:flex; gap:18px; align-items:center;">
                     <div>
-                        <div class="subtle">Human-readable</div>
                         <div class="human">{human}</div>
                     </div>
                 </div>
