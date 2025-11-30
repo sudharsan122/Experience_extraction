@@ -234,45 +234,33 @@ if uploaded:
                     except Exception:
                         pass
 
-# ---------- Display full-width cards ----------
-        # (this line should be indented inside the `if st.button(...)` block)
+        # Display results in grid cards
         st.markdown("<hr/>", unsafe_allow_html=True)
         st.markdown("### Results")
-
+        # Build two-column grid of cards
+        cards = []
+        cols = st.columns(2)
+        i = 0
         for fname, out in results.items():
+            col = cols[i % 2]
+            i += 1
             if "error" in out:
-                st.markdown(
-                    f'<div class="card"><div class="title">{fname}</div>'
-                    f'<div class="note">Error: {out["error"]}</div></div>',
-                    unsafe_allow_html=True,
-                )
+                col.markdown(f'<div class="card"><div class="title">{fname}</div><div class="note">Error: {out["error"]}</div></div>', unsafe_allow_html=True)
                 continue
-
-            # decimal kept for internal use if needed; we display only human-readable
-            decimal = out.get("decimal", 0.0)
-            human = out.get("human", "0 years")
-
+            decimal = out["decimal"]
+            human = out["human"]
             html = f'''
-            <div class="card" style="width:100%;">
-                <div class="file-row">
-                    <div class="file-name">{fname}</div>
-                </div>
-
-                <div style="display:flex; gap:18px; align-items:center; margin-top:10px;">
+            <div class="card">
+                <div class="file-row"><div class="file-name">{fname}</div></div>
+                <div style="display:flex; gap:18px; align-items:center;">
                     <div>
-                        <div class="subtle">Experience</div>
+                        <div class="subtle">Human-readable</div>
                         <div class="human">{human}</div>
                     </div>
                 </div>
-
                 <div class="note">Computed at {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</div>
             </div>
             '''
-            st.markdown(html, unsafe_allow_html=True)
-
-    # end of "if st.button(...)" branch
-
+            col.markdown(html, unsafe_allow_html=True)
 else:
-    # this else pairs with "if uploaded:" (keep it at the same indentation as that if)
     st.info("Upload one or more resume files to get started.")
-
