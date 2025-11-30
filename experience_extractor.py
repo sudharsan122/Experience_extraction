@@ -234,39 +234,45 @@ if uploaded:
                     except Exception:
                         pass
 
-        # ---------- Display full-width cards ----------
-st.markdown("<hr/>", unsafe_allow_html=True)
-st.markdown("### Results")
+# ---------- Display full-width cards ----------
+        # (this line should be indented inside the `if st.button(...)` block)
+        st.markdown("<hr/>", unsafe_allow_html=True)
+        st.markdown("### Results")
 
-for fname, out in results.items():
-    if "error" in out:
-        st.markdown(
-            f'<div class="card"><div class="title">{fname}</div>'
-            f'<div class="note">Error: {out["error"]}</div></div>',
-            unsafe_allow_html=True,
-        )
-        continue
+        for fname, out in results.items():
+            if "error" in out:
+                st.markdown(
+                    f'<div class="card"><div class="title">{fname}</div>'
+                    f'<div class="note">Error: {out["error"]}</div></div>',
+                    unsafe_allow_html=True,
+                )
+                continue
 
-    decimal = out["decimal"]
-    human = out["human"]
+            # decimal kept for internal use if needed; we display only human-readable
+            decimal = out.get("decimal", 0.0)
+            human = out.get("human", "0 years")
 
-    html = f'''
-    <div class="card" style="width:100%;">
-        <div class="file-row">
-            <div class="file-name">{fname}</div>
-        </div>
+            html = f'''
+            <div class="card" style="width:100%;">
+                <div class="file-row">
+                    <div class="file-name">{fname}</div>
+                </div>
 
-        <div style="display:flex; gap:18px; align-items:center; margin-top:10px;">
-            <div>
-                <div class="subtle">Experience</div>
-                <div class="human">{human}</div>
+                <div style="display:flex; gap:18px; align-items:center; margin-top:10px;">
+                    <div>
+                        <div class="subtle">Experience</div>
+                        <div class="human">{human}</div>
+                    </div>
+                </div>
+
+                <div class="note">Computed at {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</div>
             </div>
-        </div>
+            '''
+            st.markdown(html, unsafe_allow_html=True)
 
-        <div class="note">Computed at {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</div>
-    </div>
-    '''
-    st.markdown(html, unsafe_allow_html=True)
+    # end of "if st.button(...)" branch
 
 else:
+    # this else pairs with "if uploaded:" (keep it at the same indentation as that if)
     st.info("Upload one or more resume files to get started.")
+
