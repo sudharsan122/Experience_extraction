@@ -6,37 +6,79 @@ import json
 import tempfile
 import time
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Tuple, List
 
-# ---------- Styling (colorful UI) ----------
+# ---------- Page config & Styling ----------
 st.set_page_config(page_title="Experience Extractor", layout="wide")
+
 st.markdown(
     """
     <style>
+    /* Page / card styling */
     .card {
         background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
-        border-radius: 12px;
-        padding: 18px;
-        margin-bottom: 14px;
-        box-shadow: 0 6px 20px rgba(2,8,23,0.6);
+        border-radius: 14px;
+        padding: 24px;
+        margin-bottom: 18px;
+        box-shadow: 0 8px 28px rgba(2,8,23,0.6);
     }
-    .title {
-        font-size:20px; font-weight:800; margin-bottom:6px;
+
+    /* File title / resume name */
+    .file-name {
+        font-size: 30px;
+        font-weight: 900;
+        color: #7ed0ff;
+        margin-bottom: 8px;
     }
-    .subtle { color: #bfc6cc; font-size:13px; }
-    .big-num { font-size:28px; font-weight:800; color:#ffd66b; }
-    .human { font-size:18px; font-weight:700; color:#9ef3c9; }
-    .note { font-size:13px; color:#b3c1c9; margin-top:8px; }
-    .grid { display:grid; grid-template-columns: 1fr 1fr; gap:18px; align-items:start; }
-    .file-row { display:flex; align-items:center; gap:12px; margin-bottom:6px; }
-    .file-name { font-weight:700; color:#7ed0ff; }
+
+    /* Experience label + value */
+    .exp-label {
+        font-size: 16px;
+        color: #c7d0d6;
+        margin-bottom: 6px;
+    }
+    .exp-value {
+        font-size: 32px;
+        font-weight: 900;
+        color: #9ef3c9;
+        margin-bottom: 10px;
+    }
+
+    .computed {
+        font-size: 14px;
+        color: #9aa5b1;
+        margin-top: 14px;
+    }
+
+    /* Make page containers full width feel */
+    .app-body {
+        padding-left: 18px;
+        padding-right: 18px;
+    }
+
+    /* Button styling */
+    div.stButton > button {
+        background-color:#2E8B57;
+        color:white;
+        font-size:15px;
+        padding:10px 18px;
+        border-radius:8px;
+    }
+    div.stButton > button:hover {
+        background-color:#3CB371;
+    }
+
+    /* Responsive tweaks */
+    @media (max-width: 768px) {
+        .file-name { font-size: 22px; }
+        .exp-value { font-size: 22px; }
+    }
     </style>
     """,
     unsafe_allow_html=True,
 )
 
 # ---------- Optional dependencies ----------
-# We reuse the same parsers as the original script. If missing, we show helpful errors.
 try:
     import pdfplumber
 except Exception:
@@ -47,7 +89,7 @@ try:
 except Exception:
     docx = None
 
-# ---------- Gemini client attempt (optional) ----------
+# ---------- Optional Gemini client ----------
 GEMINI_CLIENT = None
 try:
     from google import genai as _genai
@@ -55,7 +97,7 @@ try:
 except Exception:
     GEMINI_CLIENT = None
 
-# ---------- Key retrieval (no hardcoded key) ----------
+# ---------- Key retrieval ----------
 def get_gemini_key() -> str:
     try:
         if "GEMINI_API_KEY" in st.secrets:
@@ -64,18 +106,17 @@ def get_gemini_key() -> str:
         pass
     return os.getenv("GEMINI_API_KEY", "").strip()
 
-# ---------- Text extraction (from original script) ----------
-def extract_text_from_pdf(path):
+# ---------- Text extraction helpers ----------
+def extract_text_from_pdf(path: str) -> str:
     if pdfplumber is None:
         raise RuntimeError("Install pdfplumber: pip install pdfplumber")
     parts = []
     with pdfplumber.open(path) as pdf:
         for p in pdf.pages:
             parts.append(p.extract_text() or "")
-    raw = " ".join(parts)
-    return re.sub(r'\s+', ' ', raw).strip()
+    return re.sub(r'\s+', ' ', " ".join(parts)).strip()
 
-def extract_text_from_docx(path):
+def extract_text_from_docx(path: str) -> str:
     if docx is None:
         raise RuntimeError("Install python-docx: pip install python-docx")
     d = docx.Document(path)
@@ -85,16 +126,14 @@ def extract_text_from_docx(path):
             for cell in row.cells:
                 if cell.text and cell.text.strip():
                     parts.append(cell.text.strip())
-    raw = " ".join(parts)
-    return re.sub(r'\s+', ' ', raw).strip()
+    return re.sub(r'\s+', ' ', " ".join(parts)).strip()
 
-def extract_text_from_txt(path):
+def extract_text_from_txt(path: str) -> str:
     with open(path, "rb") as f:
         raw = f.read()
-    text = raw.decode("utf-8", errors="ignore") if isinstance(raw, bytes) else str(raw)
-    return re.sub(r'\s+', ' ', text).strip()
+    return re.sub(r'\s+', ' ', raw.decode('utf-8', errors='ignore')).strip()
 
-def extract_text(path):
+def extract_text(path: str) -> str:
     p = path.lower()
     if p.endswith(".pdf"):
         return extract_text_from_pdf(path)
@@ -104,8 +143,8 @@ def extract_text(path):
         return extract_text_from_txt(path)
     raise ValueError("Unsupported file type. Supported: .pdf, .docx, .txt")
 
-# ---------- Heuristic fallback for years (from original) ----------
-def fallback_years(text):
+# ---------- Heuristic fallback for years ----------
+def fallback_years(text: str) -> float:
     vals = []
     if not text:
         return 0.0
@@ -116,13 +155,10 @@ def fallback_years(text):
             pass
     return round(max(vals), 1) if vals else 0.0
 
-# ---------- Gemini LLM call (adapted, no hardcoded key) ----------
-def ask_gemini_for_years(text: str, api_key: str, max_chars=12000) -> float:
-    if not text:
-        return 0.0
+# ---------- Gemini LLM call for years ----------
+def build_years_prompt(text: str, max_chars=12000) -> str:
     if len(text) > max_chars:
         text = text[:max_chars]
-
     today = datetime.now().strftime("%Y-%m-%d")
     prompt = f"""
 Return ONLY JSON: {{ "total_years": <float> }}.
@@ -137,12 +173,17 @@ Compute TOTAL professional work experience:
 Resume:
 \"\"\"{text}\"\"\"
 """.strip()
+    return prompt
 
-    # If no client or key, fallback
+def ask_gemini_for_years(text: str, api_key: str, max_retries: int = 2) -> float:
+    if not text:
+        return 0.0
+    prompt = build_years_prompt(text)
+    # fallback if client or key missing
     if not api_key or GEMINI_CLIENT is None:
         return fallback_years(text)
 
-    # try to build client (two common forms)
+    # Build client (try common variants)
     client = None
     try:
         client = GEMINI_CLIENT.Client(api_key=api_key)
@@ -156,36 +197,38 @@ Resume:
     if client is None:
         return fallback_years(text)
 
-    # call model
-    try:
-        resp = client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
-        raw = resp.text if hasattr(resp, "text") else str(resp)
+    for attempt in range(max_retries + 1):
+        try:
+            resp = client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
+            raw = resp.text if hasattr(resp, "text") else str(resp)
+            m = re.search(r'\{.*\}', raw, flags=re.DOTALL)
+            if m:
+                try:
+                    obj = json.loads(m.group(0))
+                    val = float(obj.get("total_years", 0.0))
+                    return round(val, 1)
+                except Exception:
+                    pass
+            # try to parse first number if JSON not returned
+            m2 = re.search(r'(\d+(?:\.\d+)?)', raw)
+            if m2:
+                return round(float(m2.group(1)), 1)
+            return fallback_years(text)
+        except Exception:
+            if attempt < max_retries:
+                time.sleep(0.6 * (attempt + 1))
+                continue
+            return fallback_years(text)
 
-        m = re.search(r'\{.*\}', raw, flags=re.DOTALL)
-        if m:
-            try:
-                obj = json.loads(m.group(0))
-                val = float(obj.get("total_years", 0.0))
-                return round(val, 1)
-            except Exception:
-                pass
-
-        m2 = re.search(r'(\d+(?:\.\d+)?)', raw)
-        if m2:
-            return round(float(m2.group(1)), 1)
-
-        return fallback_years(text)
-    except Exception:
-        return fallback_years(text)
-
-# ---------- convert decimal years to human readable ----------
-def convert_decimal_to_human(decimal_years, method="round"):
+# ---------- Convert decimal years to human-readable ----------
+def convert_decimal_to_human(decimal_years: float, method: str = "round") -> str:
     years = int(decimal_years)
     if method == "floor":
         months = int((decimal_years - years) * 12)
     else:
         months = int(round((decimal_years - years) * 12))
 
+    # adjust overflow
     if months >= 12:
         years += 1
         months -= 12
@@ -198,9 +241,12 @@ def convert_decimal_to_human(decimal_years, method="round"):
         return f"{months} months"
     return f"{years} years {months} months"
 
-# ---------- Main UI ----------
+# ---------- UI: Title & instructions ----------
 st.title("🎯 Experience Extractor — Resume Batch")
-st.write("Upload resumes (.pdf / .docx / .txt). The app will attempt to use Gemini if `GEMINI_API_KEY` is set in `st.secrets` or environment. Otherwise a heuristic fallback is used.")
+st.write(
+    "Upload resumes (.pdf / .docx / .txt). The app will attempt to use Gemini if "
+    "`GEMINI_API_KEY` is set in `st.secrets` or environment. Otherwise a heuristic fallback is used."
+)
 
 api_key = get_gemini_key()
 if api_key:
@@ -208,15 +254,15 @@ if api_key:
 else:
     st.info("No Gemini API key found — using local heuristic fallback. To enable model extraction, add `GEMINI_API_KEY` in Streamlit Secrets or environment variables.")
 
+# ---------- Upload control ----------
 uploaded = st.file_uploader("Upload resumes", type=["pdf", "docx", "txt"], accept_multiple_files=True)
 
 if uploaded:
-    # process when the user clicks
+    # Button to start processing
     if st.button("🔎 Extract Experience from Uploads"):
         results = {}
         with st.spinner("Processing resumes — extracting text and computing experience..."):
             for f in uploaded:
-                # write to temp file path for parser
                 suffix = os.path.splitext(f.name)[1]
                 with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
                     tmp.write(f.read())
@@ -234,33 +280,43 @@ if uploaded:
                     except Exception:
                         pass
 
-        # Display results in grid cards
+        # ---------- Display FULL-WIDTH cards (only human-readable shown) ----------
         st.markdown("<hr/>", unsafe_allow_html=True)
-        st.markdown("### Results")
-        # Build two-column grid of cards
-        cards = []
-        cols = st.columns(2)
-        i = 0
+        st.markdown("## 🟩 Results (Experience Extracted)")
+
         for fname, out in results.items():
-            col = cols[i % 2]
-            i += 1
+
             if "error" in out:
-                col.markdown(f'<div class="card"><div class="title">{fname}</div><div class="note">Error: {out["error"]}</div></div>', unsafe_allow_html=True)
-                continue
-            decimal = out["decimal"]
-            human = out["human"]
-            html = f'''
-            <div class="card">
-                <div class="file-row"><div class="file-name">{fname}</div></div>
-                <div style="display:flex; gap:18px; align-items:center;">
-                    <div>
-                        <div class="subtle">Human-readable</div>
-                        <div class="human">{human}</div>
+                st.markdown(
+                    f"""
+                    <div class="card" style="width:100%;">
+                        <div class="file-name">{fname}</div>
+                        <div style="color:#ffaaaa; font-size:16px;">Error: {out["error"]}</div>
                     </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+                continue
+
+            human = out.get("human", "0 years")
+
+            html = f"""
+            <div class="card" style="width:100%;">
+                <!-- Resume Name -->
+                <div class="file-name">{fname}</div>
+
+                <!-- Experience (human-readable only) -->
+                <div>
+                    <div class="exp-label">Experience</div>
+                    <div class="exp-value">{human}</div>
                 </div>
-                <div class="note">Computed at {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</div>
+
+                <!-- Time stamp -->
+                <div class="computed">Computed at {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</div>
             </div>
-            '''
-            col.markdown(html, unsafe_allow_html=True)
+            """
+            st.markdown(html, unsafe_allow_html=True)
+
+    # end of if button
 else:
     st.info("Upload one or more resume files to get started.")
