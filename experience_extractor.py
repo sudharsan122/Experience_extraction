@@ -302,20 +302,19 @@ if uploaded:
 
             html = f"""
             <div class="card" style="width:100%;">
-                <!-- Resume Name -->
                 <div class="file-name">{fname}</div>
 
-                <!-- Experience (human-readable only) -->
                 <div>
                     <div class="exp-label">Experience</div>
                     <div class="exp-value">{human}</div>
                 </div>
 
-                <!-- Time stamp -->
                 <div class="computed">Computed at {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</div>
             </div>
             """
+
             st.markdown(html, unsafe_allow_html=True)
+
 
     # end of if button
 else:
