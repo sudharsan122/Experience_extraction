@@ -6,7 +6,7 @@ import json
 import tempfile
 import time
 from datetime import datetime
-from typing import Optional, Tuple, List
+from typing import Optional
 
 # ---------- Page config & Styling ----------
 st.set_page_config(page_title="Experience Extractor", layout="wide")
@@ -50,12 +50,6 @@ st.markdown(
         margin-top: 14px;
     }
 
-    /* Make page containers full width feel */
-    .app-body {
-        padding-left: 18px;
-        padding-right: 18px;
-    }
-
     /* Button styling */
     div.stButton > button {
         background-color:#2E8B57;
@@ -68,7 +62,6 @@ st.markdown(
         background-color:#3CB371;
     }
 
-    /* Responsive tweaks */
     @media (max-width: 768px) {
         .file-name { font-size: 22px; }
         .exp-value { font-size: 22px; }
@@ -78,7 +71,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# ---------- Optional dependencies ----------
+# ---------- Optional deps ----------
 try:
     import pdfplumber
 except Exception:
@@ -89,7 +82,7 @@ try:
 except Exception:
     docx = None
 
-# ---------- Optional Gemini client ----------
+# Optional Gemini client
 GEMINI_CLIENT = None
 try:
     from google import genai as _genai
@@ -97,7 +90,7 @@ try:
 except Exception:
     GEMINI_CLIENT = None
 
-# ---------- Key retrieval ----------
+# ---------- Helpers ----------
 def get_gemini_key() -> str:
     try:
         if "GEMINI_API_KEY" in st.secrets:
@@ -106,7 +99,6 @@ def get_gemini_key() -> str:
         pass
     return os.getenv("GEMINI_API_KEY", "").strip()
 
-# ---------- Text extraction helpers ----------
 def extract_text_from_pdf(path: str) -> str:
     if pdfplumber is None:
         raise RuntimeError("Install pdfplumber: pip install pdfplumber")
@@ -143,7 +135,6 @@ def extract_text(path: str) -> str:
         return extract_text_from_txt(path)
     raise ValueError("Unsupported file type. Supported: .pdf, .docx, .txt")
 
-# ---------- Heuristic fallback for years ----------
 def fallback_years(text: str) -> float:
     vals = []
     if not text:
@@ -155,7 +146,6 @@ def fallback_years(text: str) -> float:
             pass
     return round(max(vals), 1) if vals else 0.0
 
-# ---------- Gemini LLM call for years ----------
 def build_years_prompt(text: str, max_chars=12000) -> str:
     if len(text) > max_chars:
         text = text[:max_chars]
@@ -179,11 +169,9 @@ def ask_gemini_for_years(text: str, api_key: str, max_retries: int = 2) -> float
     if not text:
         return 0.0
     prompt = build_years_prompt(text)
-    # fallback if client or key missing
     if not api_key or GEMINI_CLIENT is None:
         return fallback_years(text)
 
-    # Build client (try common variants)
     client = None
     try:
         client = GEMINI_CLIENT.Client(api_key=api_key)
@@ -209,7 +197,6 @@ def ask_gemini_for_years(text: str, api_key: str, max_retries: int = 2) -> float
                     return round(val, 1)
                 except Exception:
                     pass
-            # try to parse first number if JSON not returned
             m2 = re.search(r'(\d+(?:\.\d+)?)', raw)
             if m2:
                 return round(float(m2.group(1)), 1)
@@ -220,19 +207,15 @@ def ask_gemini_for_years(text: str, api_key: str, max_retries: int = 2) -> float
                 continue
             return fallback_years(text)
 
-# ---------- Convert decimal years to human-readable ----------
 def convert_decimal_to_human(decimal_years: float, method: str = "round") -> str:
     years = int(decimal_years)
     if method == "floor":
         months = int((decimal_years - years) * 12)
     else:
         months = int(round((decimal_years - years) * 12))
-
-    # adjust overflow
     if months >= 12:
         years += 1
         months -= 12
-
     if years == 0 and months == 0:
         return "0 years"
     if months == 0:
@@ -241,7 +224,7 @@ def convert_decimal_to_human(decimal_years: float, method: str = "round") -> str
         return f"{months} months"
     return f"{years} years {months} months"
 
-# ---------- UI: Title & instructions ----------
+# ---------- UI ----------
 st.title("🎯 Experience Extractor — Resume Batch")
 st.write(
     "Upload resumes (.pdf / .docx / .txt). The app will attempt to use Gemini if "
@@ -254,11 +237,9 @@ if api_key:
 else:
     st.info("No Gemini API key found — using local heuristic fallback. To enable model extraction, add `GEMINI_API_KEY` in Streamlit Secrets or environment variables.")
 
-# ---------- Upload control ----------
 uploaded = st.file_uploader("Upload resumes", type=["pdf", "docx", "txt"], accept_multiple_files=True)
 
 if uploaded:
-    # Button to start processing
     if st.button("🔎 Extract Experience from Uploads"):
         results = {}
         with st.spinner("Processing resumes — extracting text and computing experience..."):
@@ -280,11 +261,10 @@ if uploaded:
                     except Exception:
                         pass
 
-        # ---------- Display FULL-WIDTH cards (only human-readable shown) ----------
+        # render results as full-width cards (rendered HTML)
         st.markdown("<hr/>", unsafe_allow_html=True)
         st.markdown("## 🟩 Results (Experience Extracted)")
 
-        # Render each result as a full-width HTML card (rendered, not escaped)
         for fname, out in results.items():
 
             if "error" in out:
@@ -312,9 +292,8 @@ if uploaded:
             </div>
             """
 
-            # Render HTML (unsafe_allow_html=True so it's interpreted, not shown as raw text)
+            # render as HTML
             st.markdown(html, unsafe_allow_html=True)
 
-    # end of if button
 else:
     st.info("Upload one or more resume files to get started.")
