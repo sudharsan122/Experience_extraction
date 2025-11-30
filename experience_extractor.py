@@ -234,37 +234,39 @@ if uploaded:
                     except Exception:
                         pass
 
-        # Display results in grid cards
-        st.markdown("<hr/>", unsafe_allow_html=True)
-        st.markdown("### Results")
-        # Build two-column grid of cards
-        cards = []
-        cols = st.columns(2)
-        i = 0
-        for fname, out in results.items():
-            col = cols[i % 2]
-            i += 1
-            if "error" in out:
-                col.markdown(f'<div class="card"><div class="title">{fname}</div><div class="note">Error: {out["error"]}</div></div>', unsafe_allow_html=True)
-                continue
-            decimal = out["decimal"]
-            human = out["human"]
-            html = f'''
-            <div class="card">
-                <div class="file-row"><div class="file-name">{fname}</div></div>
-                <div style="display:flex; gap:18px; align-items:center;">
-                    <div>
-                        <div class="subtle">Decimal years</div>
-                        <div class="big-num">{decimal}</div>
-                    </div>
-                    <div>
-                        <div class="subtle">Human-readable</div>
-                        <div class="human">{human}</div>
-                    </div>
-                </div>
-                <div class="note">Computed at {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</div>
+        # ---------- Display full-width cards ----------
+st.markdown("<hr/>", unsafe_allow_html=True)
+st.markdown("### Results")
+
+for fname, out in results.items():
+    if "error" in out:
+        st.markdown(
+            f'<div class="card"><div class="title">{fname}</div>'
+            f'<div class="note">Error: {out["error"]}</div></div>',
+            unsafe_allow_html=True,
+        )
+        continue
+
+    decimal = out["decimal"]
+    human = out["human"]
+
+    html = f'''
+    <div class="card" style="width:100%;">
+        <div class="file-row">
+            <div class="file-name">{fname}</div>
+        </div>
+
+        <div style="display:flex; gap:18px; align-items:center; margin-top:10px;">
+            <div>
+                <div class="subtle">Experience</div>
+                <div class="human">{human}</div>
             </div>
-            '''
-            col.markdown(html, unsafe_allow_html=True)
+        </div>
+
+        <div class="note">Computed at {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</div>
+    </div>
+    '''
+    st.markdown(html, unsafe_allow_html=True)
+
 else:
     st.info("Upload one or more resume files to get started.")
