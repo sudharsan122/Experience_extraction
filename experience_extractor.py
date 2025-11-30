@@ -284,18 +284,17 @@ if uploaded:
         st.markdown("<hr/>", unsafe_allow_html=True)
         st.markdown("## 🟩 Results (Experience Extracted)")
 
+        # Render each result as a full-width HTML card (rendered, not escaped)
         for fname, out in results.items():
 
             if "error" in out:
-                st.markdown(
-                    f"""
-                    <div class="card" style="width:100%;">
-                        <div class="file-name">{fname}</div>
-                        <div style="color:#ffaaaa; font-size:16px;">Error: {out["error"]}</div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
+                html_err = f"""
+                <div class="card" style="width:100%;">
+                    <div class="file-name">{fname}</div>
+                    <div style="color:#ffaaaa; font-size:16px;">Error: {out['error']}</div>
+                </div>
+                """
+                st.markdown(html_err, unsafe_allow_html=True)
                 continue
 
             human = out.get("human", "0 years")
@@ -313,8 +312,8 @@ if uploaded:
             </div>
             """
 
+            # Render HTML (unsafe_allow_html=True so it's interpreted, not shown as raw text)
             st.markdown(html, unsafe_allow_html=True)
-
 
     # end of if button
 else:
